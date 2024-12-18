@@ -16,7 +16,6 @@ on:
 jobs:
   docker-build:
     runs-on: ubuntu-latest
-    needs: [lint, test, dependency-check]
     env:
       DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
       DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
