@@ -1,4 +1,5 @@
 ## Installation
+*Desclaimer:* `psycopg2` the postgres db adapter package doesn't work with python 3.13, hence, this project uses python 3.11 
 `pip install -r requirements.txt`
 
 ## Setup
