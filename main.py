@@ -1,22 +1,16 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
-import logging
 import sys
 from pathlib import Path
+from prometheus_client import make_asgi_app
 
 from app.database import engine
 from app.models.base import Base
-from app.models import users
 from app.routes import users as users_router
 from app.middleware.logging_middleware import LoggingMiddleware
+from app.middleware.metrics_middleware import MetricsMiddleware
+from app.middleware.register_exceptions import RegisterExceptionsMiddleware
 from app.utils.logger import setup_logger
-from app.exceptions.custom_exceptions import (
-    UserNotFoundException,
-    UserAlreadyExistsException,
-    DatabaseException,
-    ValidationException
-)
 
 # Create logs directory
 logs_dir = Path("logs")
@@ -24,11 +18,16 @@ logs_dir.mkdir(exist_ok=True)
 
 # Setup logging
 logger = setup_logger(
-    name="fastapi-users-service",
-    log_level="INFO",
-    log_file="logs/app.log"
+    name="fastapi-users-service", log_level="INFO", log_file="logs/app.log"
 )
 
+# Create database tables
+try:
+    Base.metadata.create_all(bind=engine)
+    logger.info("Database tables created successfully")
+except Exception as e:
+    logger.error(f"Error creating database tables: {str(e)}")
+    sys.exit(1)
 
 # Create FastAPI app
 app = FastAPI(
@@ -36,7 +35,7 @@ app = FastAPI(
     description="A FastAPI service for managing users with CRUD operations",
     version="1.0.0",
     docs_url="/docs",
-    redoc_url="/redoc"
+    redoc_url="/redoc",
 )
 
 # Add CORS middleware
@@ -48,57 +47,20 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+RegisterExceptionsMiddleware = RegisterExceptionsMiddleware(app)
+
+# Add metrics middleware
+app.add_middleware(MetricsMiddleware)
+
 # Add logging middleware
 app.add_middleware(LoggingMiddleware)
 
 # Include routers
 app.include_router(users_router.router, prefix="/api/v1")
 
-
-# Global exception handlers
-@app.exception_handler(UserNotFoundException)
-async def user_not_found_exception_handler(request: Request, exc: UserNotFoundException):
-    logger.warning(f"User not found: {exc.detail}")
-    return JSONResponse(
-        status_code=exc.status_code,
-        content={"detail": exc.detail}
-    )
-
-
-@app.exception_handler(UserAlreadyExistsException)
-async def user_already_exists_exception_handler(request: Request, exc: UserAlreadyExistsException):
-    logger.warning(f"User already exists: {exc.detail}")
-    return JSONResponse(
-        status_code=exc.status_code,
-        content={"detail": exc.detail}
-    )
-
-
-@app.exception_handler(DatabaseException)
-async def database_exception_handler(request: Request, exc: DatabaseException):
-    logger.error(f"Database error: {exc.detail}")
-    return JSONResponse(
-        status_code=exc.status_code,
-        content={"detail": exc.detail}
-    )
-
-
-@app.exception_handler(ValidationException)
-async def validation_exception_handler(request: Request, exc: ValidationException):
-    logger.warning(f"Validation error: {exc.detail}")
-    return JSONResponse(
-        status_code=exc.status_code,
-        content={"detail": exc.detail}
-    )
-
-
-@app.exception_handler(Exception)
-async def general_exception_handler(request: Request, exc: Exception):
-    logger.error(f"Unhandled exception: {str(exc)}")
-    return JSONResponse(
-        status_code=500,
-        content={"detail": "Internal server error"}
-    )
+# Add Prometheus metrics endpoint
+metrics_app = make_asgi_app()
+app.mount("/metrics", metrics_app)
 
 
 # Health check endpoint
@@ -111,7 +73,7 @@ async def health_check():
     return {
         "status": "healthy",
         "service": "FastAPI Users Service",
-        "version": "1.0.0"
+        "version": "1.0.0",
     }
 
 
@@ -125,18 +87,15 @@ async def root():
     return {
         "message": "Welcome to FastAPI Users Service",
         "docs": "/docs",
-        "health": "/health"
+        "health": "/health",
+        "metrics": "/metrics",
     }
 
 
 if __name__ == "__main__":
     import uvicorn
-    
+
     logger.info("Starting FastAPI Users Service")
     uvicorn.run(
-        "main:app",
-        host="0.0.0.0",
-        port=8000,
-        reload=True,
-        log_level="info"
+        "main:app", host="0.0.0.0", port=8000, reload=True, log_level="info"
     )

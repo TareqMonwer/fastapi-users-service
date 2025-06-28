@@ -1,6 +1,6 @@
 # FastAPI Users Service
 
-A FastAPI-based REST API service for managing users with full CRUD operations, comprehensive logging, and exception handling.
+A FastAPI-based REST API service for managing users with full CRUD operations, comprehensive logging, exception handling, and Prometheus metrics.
 
 ## Features
 
@@ -11,6 +11,7 @@ A FastAPI-based REST API service for managing users with full CRUD operations, c
 - **API Documentation**: Auto-generated Swagger/OpenAPI docs
 - **Health Check**: Service health monitoring endpoint
 - **CORS Support**: Cross-origin resource sharing enabled
+- **Prometheus Metrics**: Request counts, durations, and active requests monitoring
 
 ## Project Structure
 
@@ -27,7 +28,8 @@ fastapi-users-service/
 │   │   └── custom_exceptions.py # Custom exception classes
 │   ├── middleware/
 │   │   ├── __init__.py
-│   │   └── logging_middleware.py # Request/response logging
+│   │   ├── logging_middleware.py # Request/response logging
+│   │   └── metrics_middleware.py # Prometheus metrics
 │   ├── models/
 │   │   ├── __init__.py
 │   │   ├── base.py              # SQLAlchemy base model
@@ -104,6 +106,7 @@ uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 - **Documentation**: `http://localhost:8000/docs`
 - **ReDoc**: `http://localhost:8000/redoc`
 - **Health Check**: `http://localhost:8000/health`
+- **Metrics**: `http://localhost:8000/metrics`
 
 ### User Endpoints
 
@@ -143,6 +146,32 @@ Content-Type: application/json
 #### Delete User
 ```http
 DELETE /api/v1/users/{user_id}
+```
+
+## Monitoring & Metrics
+
+### Prometheus Metrics
+
+The application exposes Prometheus metrics at `/metrics` endpoint:
+
+- **http_requests_total**: Total number of HTTP requests by method, endpoint, and status
+- **http_request_duration_seconds**: Request duration histogram by method and endpoint
+- **http_active_requests_total**: Number of currently active requests
+
+### Example Metrics Output
+
+```
+# HELP http_requests_total Total number of HTTP requests
+# TYPE http_requests_total counter
+http_requests_total{method="GET",endpoint="/health",status="200"} 5
+
+# HELP http_request_duration_seconds HTTP request duration in seconds
+# TYPE http_request_duration_seconds histogram
+http_request_duration_seconds_bucket{method="GET",endpoint="/health",le="0.1"} 5
+
+# HELP http_requests_active Number of active HTTP requests
+# TYPE http_requests_active counter
+http_requests_active 0
 ```
 
 ## Logging
@@ -203,6 +232,7 @@ docker run -p 8000:8000 --env-file .env fastapi-users-service
 4. **Logging**: Configure log rotation and monitoring
 5. **Security**: Add authentication and authorization
 6. **Rate Limiting**: Implement rate limiting for API endpoints
+7. **Monitoring**: Set up Prometheus and Grafana for metrics visualization
 
 ## License
 
