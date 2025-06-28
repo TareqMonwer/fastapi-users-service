@@ -1,7 +1,9 @@
+import asyncio
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
-from prometheus_client import make_asgi_app
+from prometheus_client import REGISTRY, make_asgi_app, Gauge
+import psutil
 
 from app.core.settings import settings
 from app.routes import users as users_router
@@ -9,6 +11,7 @@ from app.middleware.logging_middleware import LoggingMiddleware
 from app.middleware.metrics_middleware import MetricsMiddleware
 from app.middleware.register_exceptions import RegisterExceptionsMiddleware
 from app.utils.logger import setup_logger
+from app.utils.os_metrics import update_system_metrics
 
 
 logs_dir = Path("logs")
@@ -68,6 +71,16 @@ async def root():
         "health": "/health",
         "metrics": "/metrics",
     }
+
+
+@app.on_event("startup")
+async def start_metric_updater():
+    async def run():
+        while True:
+            update_system_metrics()
+            await asyncio.sleep(5)
+
+    asyncio.create_task(run())
 
 
 if __name__ == "__main__":

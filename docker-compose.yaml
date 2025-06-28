@@ -4,6 +4,16 @@ volumes:
   grafana-data:
     driver: local
 services:
+  postgres:
+    image: postgres:14
+    container_name: postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: fastapi_user
+      POSTGRES_PASSWORD: fastapi_password
+      POSTGRES_DB: fastapi_db
+    restart: unless-stopped
   fastapi_users_service:
     build:
       context: .
@@ -13,7 +23,7 @@ services:
       - "8000:8000"
     env_file:
       - .env
-    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    command: python main.py
   prometheus:
     image: prom/prometheus
     container_name: prometheus

@@ -7,3 +7,7 @@ scrape_configs:
     static_configs:
       - targets: ['fastapi_users_service:8000']
     metrics_path: '/metrics'
+  - job_name: 'grafana'
+    static_configs:
+      - targets: ['grafana:3000']
+    metrics_path: '/metrics'
