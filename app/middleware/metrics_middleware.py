@@ -16,7 +16,7 @@ REQUEST_DURATION = Histogram(
     ["method", "endpoint"],
 )
 
-ACTIVE_REQUESTS = Gauge(
+TOTAL_ACTIVE_REQUESTS = Gauge(
     "http_active_requests_total", "Total number of active HTTP requests"
 )
 
@@ -26,26 +26,19 @@ class MetricsMiddleware(BaseHTTPMiddleware):
         super().__init__(app)
 
     async def dispatch(self, request, call_next):
-        # Increment active requests
-        ACTIVE_REQUESTS.inc()
+        TOTAL_ACTIVE_REQUESTS.inc()
 
-        # Record start time
-        start_time = time.time()
-
-        # Get endpoint name (simplified)
+        start_time = time.perf_counter()
         endpoint = request.url.path
 
         try:
-            # Process request
             response = await call_next(request)
 
-            # Record request duration
-            duration = time.time() - start_time
+            duration = time.perf_counter() - start_time
             REQUEST_DURATION.labels(
                 method=request.method, endpoint=endpoint
             ).observe(duration)
 
-            # Record request count
             REQUEST_COUNT.labels(
                 method=request.method,
                 endpoint=endpoint,
@@ -55,8 +48,7 @@ class MetricsMiddleware(BaseHTTPMiddleware):
             return response
 
         except Exception as _:  # noqa
-            # Record failed request
-            duration = time.time() - start_time
+            duration = time.perf_counter() - start_time
             REQUEST_DURATION.labels(
                 method=request.method, endpoint=endpoint
             ).observe(duration)
@@ -67,5 +59,4 @@ class MetricsMiddleware(BaseHTTPMiddleware):
 
             raise
         finally:
-            # Decrement active requests
-            ACTIVE_REQUESTS.dec()
+            TOTAL_ACTIVE_REQUESTS.dec()

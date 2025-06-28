@@ -1,44 +1,31 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-import sys
 from pathlib import Path
 from prometheus_client import make_asgi_app
 
-from app.database import engine
-from app.models.base import Base
+from app.core.settings import settings
 from app.routes import users as users_router
 from app.middleware.logging_middleware import LoggingMiddleware
 from app.middleware.metrics_middleware import MetricsMiddleware
 from app.middleware.register_exceptions import RegisterExceptionsMiddleware
 from app.utils.logger import setup_logger
 
-# Create logs directory
+
 logs_dir = Path("logs")
 logs_dir.mkdir(exist_ok=True)
 
-# Setup logging
 logger = setup_logger(
-    name="fastapi-users-service", log_level="INFO", log_file="logs/app.log"
+    name=settings.LOGGER_NAME, log_level="INFO", log_file=settings.LOGGER_PATH
 )
 
-# Create database tables
-try:
-    Base.metadata.create_all(bind=engine)
-    logger.info("Database tables created successfully")
-except Exception as e:
-    logger.error(f"Error creating database tables: {str(e)}")
-    sys.exit(1)
-
-# Create FastAPI app
 app = FastAPI(
     title="FastAPI Users Service",
-    description="A FastAPI service for managing users with CRUD operations",
+    description="A FastAPI service for managing users",
     version="1.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
 )
 
-# Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -46,24 +33,16 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-RegisterExceptionsMiddleware = RegisterExceptionsMiddleware(app)
-
-# Add metrics middleware
+RegisterExceptionsMiddleware(app)
 app.add_middleware(MetricsMiddleware)
-
-# Add logging middleware
 app.add_middleware(LoggingMiddleware)
 
-# Include routers
 app.include_router(users_router.router, prefix="/api/v1")
 
-# Add Prometheus metrics endpoint
 metrics_app = make_asgi_app()
 app.mount("/metrics", metrics_app)
 
 
-# Health check endpoint
 @app.get("/health")
 async def health_check():
     """
@@ -77,7 +56,6 @@ async def health_check():
     }
 
 
-# Root endpoint
 @app.get("/")
 async def root():
     """

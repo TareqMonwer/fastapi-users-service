@@ -23,18 +23,16 @@ class UserCRUD:
     @staticmethod
     def create_user(db: Session, user: UserCreate) -> User:
         """Create a new user"""
-        db_user = User(
-            name=user.name,
-            email=user.email,
-            phone=user.phone
-        )
+        db_user = User(name=user.name, email=user.email, phone=user.phone)
         db.add(db_user)
         db.commit()
         db.refresh(db_user)
         return db_user
 
     @staticmethod
-    def update_user(db: Session, user_id: int, user: UserUpdate) -> Optional[User]:
+    def update_user(
+        db: Session, user_id: int, user: UserUpdate
+    ) -> Optional[User]:
         """Update a user"""
         db_user = db.query(User).filter(User.id == user_id).first()
         if db_user:
@@ -53,4 +51,4 @@ class UserCRUD:
             db.delete(db_user)
             db.commit()
             return True
-        return False 
+        return False

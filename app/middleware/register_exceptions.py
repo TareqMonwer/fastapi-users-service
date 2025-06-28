@@ -4,7 +4,6 @@ from app.exceptions.custom_exceptions import (
     UserNotFoundException,
     UserAlreadyExistsException,
     DatabaseException,
-    ValidationException,
 )
 from app.utils.logger import setup_logger
 logger = setup_logger(
