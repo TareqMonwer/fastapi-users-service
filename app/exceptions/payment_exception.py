@@ -6,4 +6,4 @@ class PaymentException(Exception):
 
     def __init__(self, *args: object) -> None:
         super().__init__(*args)
-        TOTAL_PAYMENT_ERRORS.labels(error_type=self.__class__.__name__).inc()
+        TOTAL_PAYMENT_ERRORS.labels(error_type=self.__class__.__name__).inc(1)

@@ -3,6 +3,9 @@ volumes:
     driver: local
   grafana-data:
     driver: local
+  alertmanager-data:
+    driver: local
+
 services:
   postgres:
     image: postgres:14
@@ -32,6 +35,7 @@ services:
     command: "--config.file=/etc/prometheus/prometheus.yaml"
     volumes:
       - ./prometheus/prometheus.yaml:/etc/prometheus/prometheus.yaml:ro
+      - ./prometheus/payment-failure-alert.yaml:/etc/prometheus/payment-failure-alert.yaml:ro
       - prometheus-data:/prometheus
     restart: unless-stopped
   
@@ -72,3 +76,14 @@ services:
       - GF_SECURITY_ADMIN_PASSWORD=admin
       - GF_AUTH_ANONYMOUS_ENABLED=true
       - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+  
+  alertmanager:
+    image: prom/alertmanager:latest
+    restart: unless-stopped
+    container_name: alertmgr
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./prometheus/alertmanager.yaml:/etc/prometheus/alertmanager.yaml:ro
+      - alertmanager-data:/data
+    command: --config.file=/etc/prometheus/alertmanager.yaml --log.level=debug
