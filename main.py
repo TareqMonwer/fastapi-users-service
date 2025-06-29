@@ -7,6 +7,7 @@ import psutil
 
 from app.core.settings import settings
 from app.routes import users as users_router
+from app.routes.payments import payment_router
 from app.middleware.logging_middleware import LoggingMiddleware
 from app.middleware.metrics_middleware import MetricsMiddleware
 from app.middleware.register_exceptions import RegisterExceptionsMiddleware
@@ -41,6 +42,7 @@ app.add_middleware(MetricsMiddleware)
 app.add_middleware(LoggingMiddleware)
 
 app.include_router(users_router.router, prefix="/api/v1")
+app.include_router(payment_router, prefix="/api/v1")
 
 metrics_app = make_asgi_app()
 app.mount("/metrics", metrics_app)

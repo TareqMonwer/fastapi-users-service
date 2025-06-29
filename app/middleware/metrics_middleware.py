@@ -20,6 +20,12 @@ TOTAL_ACTIVE_REQUESTS = Gauge(
     "http_active_requests_total", "Total number of active HTTP requests"
 )
 
+TOTAL_PAYMENT_ERRORS = Counter(
+    "payment_errors_total",
+    "Total number of payment errors",
+    ["error_type"],
+)
+
 
 class MetricsMiddleware(BaseHTTPMiddleware):
     def __init__(self, app: ASGIApp):
