@@ -1,4 +1,4 @@
-# FastAPI Users Service
+# FastAPI Users Service (FastAPI folder structures, prometheus, grafana, docker)
 
 A FastAPI-based REST API service for managing users with full CRUD operations, comprehensive logging, exception handling, and Prometheus metrics.
 
