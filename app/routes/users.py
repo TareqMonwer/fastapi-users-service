@@ -1,3 +1,4 @@
+from app.core.security import get_current_user, hash_password
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 from typing import List
@@ -5,6 +6,7 @@ import logging
 
 from app.database import get_db
 from app.crud.user import UserCRUD
+from app.routes.auth import UserModel
 from app.schemas.user import User, UserCreate, UserUpdate
 from app.exceptions.custom_exceptions import (
     UserNotFoundException,
@@ -19,22 +21,28 @@ router = APIRouter(prefix="/users", tags=["users"])
 
 
 @router.post("/", response_model=User, status_code=status.HTTP_201_CREATED)
-async def create_user(user: UserCreate, db: Session = Depends(get_db)):
+async def create_user(
+    user: UserCreate,
+    db: Session = Depends(get_db),
+    current_user: UserModel = Depends(get_current_user)
+):
     """
-    Create a new user
+    Create a new user (requires authentication)
     """
     try:
         logger.info(f"Creating new user with email: {user.email}")
 
         # Check if user with email already exists
-        if user.email:
-            existing_user = UserCRUD.get_user_by_email(db, user.email)
-            if existing_user:
-                logger.warning(f"User with email {user.email} already exists")
-                raise UserAlreadyExistsException(user.email)
+        existing_user = UserCRUD.get_user_by_email(db, user.email)
+        if existing_user:
+            logger.warning(f"User with email {user.email} already exists")
+            raise UserAlreadyExistsException(user.email)
+
+        # Hash password
+        password_hash = hash_password(user.password)
 
         # Create user
-        db_user = UserCRUD.create_user(db, user)
+        db_user = UserCRUD.create_user(db, user, password_hash)
         logger.info(f"User created successfully with ID: {db_user.id}")
 
         return db_user
@@ -48,7 +56,10 @@ async def create_user(user: UserCreate, db: Session = Depends(get_db)):
 
 @router.get("/", response_model=List[User])
 async def get_users(
-    skip: int = 0, limit: int = 100, db: Session = Depends(get_db)
+    skip: int = 0,
+    limit: int = 100,
+    db: Session = Depends(get_db),
+    current_user: UserModel = Depends(get_current_user)
 ):
     """
     Get all users with pagination
@@ -65,7 +76,11 @@ async def get_users(
 
 
 @router.get("/{user_id}", response_model=User)
-async def get_user(user_id: int, db: Session = Depends(get_db)):
+async def get_user(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: UserModel = Depends(get_current_user)
+):
     """
     Get a user by ID
     """
@@ -89,7 +104,10 @@ async def get_user(user_id: int, db: Session = Depends(get_db)):
 
 @router.put("/{user_id}", response_model=User)
 async def update_user(
-    user_id: int, user: UserUpdate, db: Session = Depends(get_db)
+    user_id: int,
+    user: UserUpdate,
+    db: Session = Depends(get_db),
+    current_user: UserModel = Depends(get_current_user)
 ):
     """
     Update a user
@@ -124,7 +142,11 @@ async def update_user(
 
 
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_user(user_id: int, db: Session = Depends(get_db)):
+async def delete_user(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: UserModel = Depends(get_current_user)
+):
     """
     Delete a user
     """

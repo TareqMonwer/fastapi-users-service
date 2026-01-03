@@ -21,6 +21,7 @@ RUN apt-get update && apt-get install -y libpq5 && \
 WORKDIR /app
 COPY --from=build-env /app /app
 COPY --from=build-env /venv /venv
+RUN chmod +x /app/start.sh
 
 ENV PATH="/venv/bin:$PATH"
 
