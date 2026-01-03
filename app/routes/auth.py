@@ -28,6 +28,7 @@ from app.exceptions.auth_exceptions import (
 )
 from app.exceptions.custom_exceptions import UserAlreadyExistsException
 from app.models.users import User as UserModel
+from app.middleware.metrics_middleware import AUTH_TOKENS_ISSUED_TOTAL
 
 logger = logging.getLogger(__name__)
 
@@ -104,6 +105,10 @@ async def login(
         # Store refresh token in database
         RefreshTokenCRUD.create_refresh_token(db, user.id, refresh_token)
         
+        # Increment metrics
+        AUTH_TOKENS_ISSUED_TOTAL.labels(token_type="access", endpoint="login").inc()
+        AUTH_TOKENS_ISSUED_TOTAL.labels(token_type="refresh", endpoint="login").inc()
+        
         logger.info(f"User {user.id} logged in successfully")
         
         return TokenResponse(
@@ -174,6 +179,10 @@ async def refresh_token(
         # Revoke old refresh token and create new one
         RefreshTokenCRUD.revoke_refresh_token(db, token_request.refresh_token)
         RefreshTokenCRUD.create_refresh_token(db, user.id, new_refresh_token)
+        
+        # Increment metrics
+        AUTH_TOKENS_ISSUED_TOTAL.labels(token_type="access", endpoint="refresh").inc()
+        AUTH_TOKENS_ISSUED_TOTAL.labels(token_type="refresh", endpoint="refresh").inc()
         
         logger.info(f"Token refreshed successfully for user {user.id}")
         

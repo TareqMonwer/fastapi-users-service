@@ -26,6 +26,12 @@ TOTAL_PAYMENT_ERRORS = Counter(
     ["error_type"],
 )
 
+AUTH_TOKENS_ISSUED_TOTAL = Counter(
+    "auth_tokens_issued_total",
+    "Total number of authentication tokens issued",
+    ["token_type", "endpoint"],
+)
+
 
 class MetricsMiddleware(BaseHTTPMiddleware):
     def __init__(self, app: ASGIApp):

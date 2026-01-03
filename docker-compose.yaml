@@ -29,6 +29,18 @@ services:
     environment:
       DATABASE_URL: postgresql://fastapi_user:fastapi_password@postgres:5432/fastapi_db
     command: /app/start.sh
+  fastapi_orders_service:
+    build:
+      context: ../orders-service
+      dockerfile: Dockerfile
+    container_name: fastapi_orders_service
+    ports:
+      - "8001:8001"
+    env_file:
+      - ../orders-service/.env
+    environment:
+      DATABASE_URL: postgresql://fastapi_user:fastapi_password@postgres:5432/fastapi_db
+    command: /app/start.sh
   prometheus:
     image: prom/prometheus
     container_name: prometheus

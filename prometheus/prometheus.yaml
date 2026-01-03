@@ -15,6 +15,10 @@ scrape_configs:
     static_configs:
       - targets: ['fastapi_users_service:8000']
     metrics_path: '/metrics'
+  - job_name: 'fastapi-orders-service'
+    static_configs:
+      - targets: ['fastapi_orders_service:8001']
+    metrics_path: '/metrics'
   - job_name: 'prometheus'
     static_configs:
       - targets: ['localhost:9090']
