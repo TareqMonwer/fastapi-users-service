@@ -41,3 +41,15 @@ class TokenData(BaseModel):
     """Schema for decoded token data."""
     user_id: Optional[int] = None
     email: Optional[str] = None
+
+
+class OpaqueTokenRequest(BaseModel):
+    """Schema for opaque token request."""
+    token: str
+
+
+class OpaqueTokenResponse(BaseModel):
+    """Schema for opaque token response."""
+    access_token: str
+    refresh_token: str
+    token_type: str = "bearer"

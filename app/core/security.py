@@ -16,6 +16,7 @@ from app.core.constants import (
 )
 from app.database import get_db
 from app.models.users import User
+from app.crud.opaque_token import OpaqueTokenCRUD
 
 # Password hashing context
 pwd_context = CryptContext(schemes=["sha256_crypt", "md5_crypt", "des_crypt"])
@@ -119,6 +120,43 @@ def get_current_user(
         
         # Get user from database
         user = UserCRUD.get_user(db, user_id)
+        if user is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=ERROR_TOKEN_INVALID
+            )
+        
+        return user
+    
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=ERROR_TOKEN_INVALID
+        )
+
+
+def get_current_user_opaque(
+    credentials: HTTPAuthorizationCredentials = Depends(security_scheme),
+    db: Session = Depends(get_db)
+) -> User:
+    """Dependency to get the current authenticated user from opaque token."""
+    from app.crud.user import UserCRUD
+
+    token = credentials.credentials
+    
+    try:
+        # Validate opaque token
+        db_token = OpaqueTokenCRUD.validate_opaque_token(db, token, token_type="access")
+        if not db_token:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=ERROR_TOKEN_INVALID
+            )
+        
+        # Get user from database
+        user = UserCRUD.get_user(db, db_token.user_id)
         if user is None:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,

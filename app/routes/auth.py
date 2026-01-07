@@ -9,10 +9,13 @@ from app.schemas.auth import (
     UserLogin,
     TokenResponse,
     RefreshTokenRequest,
+    OpaqueTokenRequest,
+    OpaqueTokenResponse,
 )
 from app.schemas.user import User
 from app.crud.user import UserCRUD
 from app.crud.auth import RefreshTokenCRUD
+from app.crud.opaque_token import OpaqueTokenCRUD
 from app.core.security import (
     hash_password,
     verify_password,
@@ -235,3 +238,173 @@ async def get_current_user_info(
 ):
     """Get current authenticated user information."""
     return current_user
+
+
+@router.post("/login-opaque", response_model=OpaqueTokenResponse)
+async def login_opaque(
+    credentials: UserLogin,
+    db: Session = Depends(get_db)
+):
+    """Authenticate user and return opaque access and refresh tokens."""
+    try:
+        logger.info(f"Opaque token login attempt for email: {credentials.email}")
+        
+        # Get user by email
+        user = UserCRUD.get_user_by_email(db, credentials.email)
+        if not user:
+            logger.warning(f"Opaque login failed: user with email {credentials.email} not found")
+            raise InvalidCredentialsException()
+        
+        # Verify password
+        if not verify_password(credentials.password, user.password_hash):
+            logger.warning(f"Opaque login failed: invalid password for email {credentials.email}")
+            raise InvalidCredentialsException()
+        
+        # Create opaque tokens
+        access_token_obj = OpaqueTokenCRUD.create_opaque_token(db, user.id, token_type="access")
+        refresh_token_obj = OpaqueTokenCRUD.create_opaque_token(db, user.id, token_type="refresh")
+        
+        # Increment metrics
+        AUTH_TOKENS_ISSUED_TOTAL.labels(token_type="opaque_access", endpoint="login-opaque").inc()
+        AUTH_TOKENS_ISSUED_TOTAL.labels(token_type="opaque_refresh", endpoint="login-opaque").inc()
+        
+        logger.info(f"User {user.id} logged in successfully with opaque tokens")
+        
+        return OpaqueTokenResponse(
+            access_token=access_token_obj.token,
+            refresh_token=refresh_token_obj.token,
+            token_type="bearer"
+        )
+    
+    except (InvalidCredentialsException, HTTPException):
+        raise
+    except Exception as e:
+        logger.error(f"Error during opaque login: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Opaque login failed: {str(e)}"
+        )
+
+
+@router.post("/validate-opaque")
+async def validate_opaque_token(
+    token_request: OpaqueTokenRequest,
+    db: Session = Depends(get_db)
+):
+    """Validate an opaque token and return user information."""
+    try:
+        logger.info("Opaque token validation attempt")
+        
+        # Validate token
+        db_token = OpaqueTokenCRUD.validate_opaque_token(db, token_request.token)
+        if not db_token:
+            logger.warning("Opaque token validation failed: invalid or expired token")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid or expired opaque token"
+            )
+        
+        # Get user
+        user = UserCRUD.get_user(db, db_token.user_id)
+        if not user:
+            logger.warning(f"Opaque token validation failed: user {db_token.user_id} not found")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="User not found"
+            )
+        
+        logger.info(f"Opaque token validated successfully for user {user.id}")
+        
+        return {
+            "valid": True,
+            "user_id": user.id,
+            "email": user.email,
+            "token_type": db_token.token_type,
+            "expires_at": db_token.expires_at.isoformat()
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error during opaque token validation: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Token validation failed: {str(e)}"
+        )
+
+
+@router.post("/refresh-opaque", response_model=OpaqueTokenResponse)
+async def refresh_opaque_token(
+    token_request: OpaqueTokenRequest,
+    db: Session = Depends(get_db)
+):
+    """Refresh opaque access token using opaque refresh token."""
+    try:
+        logger.info("Opaque token refresh attempt")
+        
+        # Validate refresh token
+        db_refresh_token = OpaqueTokenCRUD.validate_opaque_token(
+            db, token_request.token, token_type="refresh"
+        )
+        if not db_refresh_token:
+            logger.warning("Opaque token refresh failed: invalid or expired refresh token")
+            raise InvalidRefreshTokenException()
+        
+        # Get user
+        user = UserCRUD.get_user(db, db_refresh_token.user_id)
+        if not user:
+            logger.warning(f"Opaque token refresh failed: user {db_refresh_token.user_id} not found")
+            raise InvalidRefreshTokenException()
+        
+        # Revoke old refresh token and create new tokens
+        OpaqueTokenCRUD.revoke_opaque_token(db, db_refresh_token.token)
+        new_access_token_obj = OpaqueTokenCRUD.create_opaque_token(db, user.id, token_type="access")
+        new_refresh_token_obj = OpaqueTokenCRUD.create_opaque_token(db, user.id, token_type="refresh")
+        
+        # Increment metrics
+        AUTH_TOKENS_ISSUED_TOTAL.labels(token_type="opaque_access", endpoint="refresh-opaque").inc()
+        AUTH_TOKENS_ISSUED_TOTAL.labels(token_type="opaque_refresh", endpoint="refresh-opaque").inc()
+        
+        logger.info(f"Opaque tokens refreshed successfully for user {user.id}")
+        
+        return OpaqueTokenResponse(
+            access_token=new_access_token_obj.token,
+            refresh_token=new_refresh_token_obj.token,
+            token_type="bearer"
+        )
+    
+    except (InvalidRefreshTokenException, HTTPException):
+        raise
+    except Exception as e:
+        logger.error(f"Error during opaque token refresh: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Token refresh failed: {str(e)}"
+        )
+
+
+@router.post("/logout-opaque", status_code=status.HTTP_204_NO_CONTENT)
+async def logout_opaque(
+    token_request: OpaqueTokenRequest,
+    db: Session = Depends(get_db)
+):
+    """Logout user by revoking opaque token."""
+    try:
+        logger.info("Opaque token logout attempt")
+        
+        # Revoke token
+        success = OpaqueTokenCRUD.revoke_opaque_token(db, token_request.token)
+        
+        if success:
+            logger.info("User logged out successfully (opaque token)")
+        else:
+            logger.warning("Logout: opaque token not found")
+        
+        return None
+    
+    except Exception as e:
+        logger.error(f"Error during opaque logout: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Logout failed: {str(e)}"
+        )
